@@ -84,9 +84,17 @@ function show_more_mutation() {
   
 }
 
-function run_main_and_mutation(all_mutation) {
+function run_main_and_mutation(all_mutation, retry_interval = 1000) {
   // id 'items' contains the list of all related videos 
-  main('items')
+  success = main('items')
+  if (!success) {
+     //console.log("Deferring 'run_main_and_mutation' for " + retry_interval)
+     setTimeout(function() { 
+        // Try again at an exponentially growing interval
+        run_main_and_mutation(all_mutation, retry_interval*2)
+    }, retry_interval)
+    return
+  }
   show_more_mutation()
   if(all_mutation)
   {
@@ -117,6 +125,10 @@ function main(tag) {
     var video_payload, node_name
     // var sidebar_section = document.getElementById(tag)
     var sidebar_section = document.querySelectorAll('#items.ytd-watch-next-secondary-results-renderer')[0]
+    // The expected elements might not be loaded yet
+    if (typeof sidebar_section == 'undefined') {
+        return false
+    }
     // length of total video tabs on side-bar (without show more)
     var len = sidebar_section.children.length
       for(var video_index=0; video_index<len; video_index++)
@@ -141,7 +153,9 @@ function main(tag) {
     catch (err)
     {
       console.log("Error for video index ", err)
+      return false
     }
+    return true
 }
 
 var prev = window.location.href
@@ -157,6 +171,10 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   }
 });
 
-if(window.location.href.indexOf('watch') > -1){
-  run_main_and_mutation(true)
-}
+// run_at document_end in the manifest does not seem to be enough
+setTimeout(function() {
+  if(window.location.href.indexOf('watch') > -1) {
+    run_main_and_mutation(true)
+  }
+}, 500)
+
